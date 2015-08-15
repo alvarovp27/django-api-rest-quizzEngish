@@ -1,11 +1,23 @@
 from .models import WordTranslations, FavouritesEN, FavouritesSP, WordStats, Categories
 from rest_framework import serializers
 from django.contrib.auth.models import User
-
+"""
 class UserSerializer(serializers.ModelSerializer):
 	class Meta:
 		model = User
 		fields = ('username','email','password')
+		read_only_fields=('password')
+"""
+class UserSerializer(serializers.Serializer):
+	username = serializers.CharField(max_length=30)
+	password = serializers.CharField(max_length=100)
+
+	def create(self, validated_data):
+		user = User(username=validated_data['username'])
+		user.set_password(validated_data['password'])
+		user.save()
+		return user
+
 
 class WordTranslationsSerializer(serializers.Serializer):
 	wordSP = serializers.CharField(max_length=100)
@@ -13,6 +25,7 @@ class WordTranslationsSerializer(serializers.Serializer):
 	wordEN = serializers.CharField(max_length=100)
 	typeEN = serializers.CharField(max_length=100)
 	category = serializers.CharField(max_length=100)
+	#user = serializers.IntegerField()
 
 	#Los siguientes dos métodos definen cómo se van a crear
 	#o modificar instancias al llamar al serializer.save()
@@ -27,6 +40,8 @@ class WordTranslationsSerializer(serializers.Serializer):
 		instance.category = validated_data.get('category',instance.category)
 		instance.save()
 		return instance
+
+
 
 class FavouritesEN(serializers.Serializer):
 	wordEN = serializers.CharField(max_length=100)

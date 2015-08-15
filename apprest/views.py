@@ -15,6 +15,7 @@ from django.contrib.auth.decorators import login_required
 
 from django.contrib.auth.models import User
 
+from rest_framework import permissions
 
 class Usuario(APIView):
 	serializer_class = UserSerializer
@@ -30,25 +31,28 @@ class Usuario(APIView):
 			return Response(serializer.data, status=status.HTTP_201_CREATED)
 		return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
 
-
 class WordTranslationsList(APIView):
-
+	permission_classes = (permissions.IsAuthenticatedOrReadOnly,)
 	#Así desactivo la interfaz de usuario por defecto de la API
 	renderer_classes = [JSONRenderer]
 
-	@login_required
+	def perform_create(self, serializer):
+		serializer.save(user=self.request.user)
+	
 	def get(self, request, format=None):
 		words = WordTranslations.objects.all()
 		serializer = WordTranslationsSerializer(words, many=True)
-		print(request.user.__str__()) #Para probar la autenticación por cookie
+		#print(request.user.__str__()) #Para probar la autenticación por cookie
 		return Response(serializer.data)
 
 	def post(self, request, format=None):
 		serializer = WordTranslationsSerializer(data = request.data)
 		if serializer.is_valid():
+			self.perform_create(serializer)
 			serializer.save()
 			return Response(serializer.data, status=status.HTTP_201_CREATED)
 		return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
+
 
 class WordTranslationsFromEnglish(APIView):
 
