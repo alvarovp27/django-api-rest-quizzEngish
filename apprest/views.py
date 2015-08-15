@@ -1,42 +1,88 @@
 from django.shortcuts import render
 
 # Create your views here.
-from django.http import HttpResponse
-from django.views.decorators.csrf import csrf_exempt
+from apprest.models import WordTranslations
+from apprest.serializers import WordTranslationsSerializer, UserSerializer
+
+from django.http import Http404
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
 from rest_framework.renderers import JSONRenderer
-from rest_framework.parsers import JSONParser
-from .models import WordTranslations
-from .serializers import WordSerializer
+from rest_framework.decorators import api_view
 
-class JSONResponse(HttpResponse):
-    """
-    An HttpResponse that renders its content into JSON.
-    """
-    def __init__(self, data, **kwargs):
-        content = JSONRenderer().render(data)
-        kwargs['content_type'] = 'application/json'
-        super(JSONResponse, self).__init__(content, **kwargs)
+from django.contrib.auth.decorators import login_required
+
+from django.contrib.auth.models import User
 
 
-	@csrf_exempt
-	def word_list(request):
-		"""
-   		List all code snippets, or create a new snippet.
-    	"""
-    	if request.method=='GET':
-    		words = Word.objects().all()
-    		serializer = WordSerializer(words, many = True)
-    		return JSONResponse(serializer.data)
-    	elif request.method=='POST':
-    		data = JSONParser().parse(request)
-    		serializer = WordSerializer(data=data)
-    		if serializer.is_valid():
-    			serializer.save()
-    			return JSONResponse(serializer.data, status=201)
-    		return JSONResponse(serializer.errors, status=400)
+class Usuario(APIView):
+	serializer_class = UserSerializer
+	def get(self,request,format=None):
+		users= User.objects.all()
+		response = self.serializer_class(users,many=True)
+		return Response(response.data)
 
-    def word_detail(request, pk):
-    	"""
-    	Retrieve, update or delete a code snippet.
-    	"""
-    	if 
+	def post(self, request, format = None):
+		serializer = UserSerializer(data = request.data)
+		if serializer.is_valid():
+			serializer.save()
+			return Response(serializer.data, status=status.HTTP_201_CREATED)
+		return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
+
+
+class WordTranslationsList(APIView):
+
+	#Así desactivo la interfaz de usuario por defecto de la API
+	renderer_classes = [JSONRenderer]
+
+	@login_required
+	def get(self, request, format=None):
+		words = WordTranslations.objects.all()
+		serializer = WordTranslationsSerializer(words, many=True)
+		print(request.user.__str__()) #Para probar la autenticación por cookie
+		return Response(serializer.data)
+
+	def post(self, request, format=None):
+		serializer = WordTranslationsSerializer(data = request.data)
+		if serializer.is_valid():
+			serializer.save()
+			return Response(serializer.data, status=status.HTTP_201_CREATED)
+		return Response(serializer.errors, status = status.HTTP_400_BAD_REQUEST)
+
+class WordTranslationsFromEnglish(APIView):
+
+	renderer_classes=[JSONRenderer]
+
+	def get_objects(self, wordEN):
+		try:
+			return WordTranslations.objects.filter(wordEN=wordEN)
+		except WordTranslations.DoesNotExist:
+			raise Http404
+
+	def get(self, request, wordEN, format=None):
+		words = self.get_objects(wordEN)
+		serializer = WordTranslationsSerializer(words, many=True)
+		return Response(serializer.data)
+
+
+class WordTranslationUpdateDelete(APIView):
+	renderer_classes=[JSONRenderer]
+	def get_object(self, wordEN,wordSP,typeEN,typeSP,category):
+		try:
+			return WordTranslations.objects.get(wordEN=wordEN, wordSP=wordSP, typeEN=typeEN, typeSP=typeSP, category=category)
+		except WordTranslations.DoesNotExist:
+			raise Http404
+
+	def put(self, request, wordEN, typeEN, wordSP, typeSP, category, format=None):
+		word = self.get_object(wordEN,wordSP,typeEN,typeSP,category)
+		serializer = WordTranslationsSerializer(word, data=request.data)
+		if serializer.is_valid():
+			serializer.save()
+			return Response(serializer.data)
+		return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+	
+	def delete(self, request, wordEN, typeEN, wordSP, typeSP, category, format=None):
+		word = self.get_object(wordEN,wordSP,typeEN,typeSP,category)
+		word.delete()
+		return Response(status=status.HTTP_204_NO_CONTENT)
